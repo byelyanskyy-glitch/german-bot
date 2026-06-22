@@ -71,7 +71,7 @@ async def webhook(request: Request):
         event_type = data.get("typeWebhook")
 
         # ✅ ОБРАБАТЫВАЕМ ТОЛЬКО ВХОДЯЩИЕ СООБЩЕНИЯ
-        if event_type != "incomingMessageReceived":
+        if event_type not in ["incomingMessageReceived", "outgoingMessageReceived"]:
             logger.info(f"Ignored event: {event_type}")
             return {"status": "ignored"}
 
