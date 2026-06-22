@@ -111,6 +111,7 @@ def call_ai(text: str) -> str:
 # ─────────────────────────────────────────────
 # WEBHOOK
 # ─────────────────────────────────────────────
+log.info(f"[RAW WEBHOOK] {body}")
 @app.post("/webhook")
 async def webhook(request: Request):
     try:
