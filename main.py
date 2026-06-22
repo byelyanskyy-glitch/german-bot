@@ -12,22 +12,24 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-# ---------------- FASTAPI ----------------
+# ---------------- APP ----------------
 app = FastAPI()
 
-# ---------------- ENV VARIABLES ----------------
+# ---------------- ENV ----------------
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 GREEN_API_INSTANCE_ID = os.getenv("GREEN_API_INSTANCE_ID")
 GREEN_API_TOKEN = os.getenv("GREEN_API_TOKEN")
+
 GREEN_API_URL = "https://api.green-api.com"
 
 # ---------------- OPENAI CLIENT ----------------
+client = None
 if OPENAI_API_KEY:
     client = OpenAI(api_key=OPENAI_API_KEY)
+    logger.info("OpenAI client initialized")
 else:
-    client = None
-    logger.error("OPENAI_API_KEY is missing in Render environment variables")
+    logger.error("OPENAI_API_KEY is missing in environment variables")
 
 # ---------------- ROOT ----------------
 @app.get("/")
@@ -56,7 +58,7 @@ def send_whatsapp_message(chat_id: str, text: str):
         logger.info(f"Green-API response: {response.status_code} {response.text}")
         return response.json()
     except Exception as e:
-        logger.exception(f"Error sending WhatsApp message: {e}")
+        logger.exception(f"Error sending message: {e}")
         return None
 
 # ---------------- WEBHOOK ----------------
@@ -66,8 +68,11 @@ async def webhook(request: Request):
         data = await request.json()
         logger.info(f"Incoming webhook: {data}")
 
-        # ❗ фильтр — только входящие сообщения пользователя
-        if data.get("typeWebhook") != "incomingMessageReceived":
+        event_type = data.get("typeWebhook")
+
+        # ✅ ОБРАБАТЫВАЕМ ТОЛЬКО ВХОДЯЩИЕ СООБЩЕНИЯ
+        if event_type != "incomingMessageReceived":
+            logger.info(f"Ignored event: {event_type}")
             return {"status": "ignored"}
 
         message_data = data.get("messageData", {})
@@ -77,7 +82,10 @@ async def webhook(request: Request):
         chat_id = sender.get("chatId")
 
         if not text or not chat_id:
+            logger.info("No text or chat_id found")
             return {"status": "ignored"}
+
+        logger.info(f"User message: {text}")
 
         # ---------------- GPT ----------------
         if client:
@@ -88,8 +96,8 @@ async def webhook(request: Request):
                         "role": "system",
                         "content": (
                             "You are a professional German language tutor. "
-                            "Explain grammar clearly, adapt to user's language, "
-                            "and give exercises and corrections."
+                            "Explain grammar clearly, give examples and exercises. "
+                            "Adapt response to user's language."
                         )
                     },
                     {
@@ -101,7 +109,7 @@ async def webhook(request: Request):
 
             answer = response.choices[0].message.content
         else:
-            answer = "OpenAI API key is missing. Please set environment variables in Render."
+            answer = "OpenAI API key is missing in environment variables."
 
         # ---------------- SEND RESPONSE ----------------
         send_whatsapp_message(chat_id, answer)
